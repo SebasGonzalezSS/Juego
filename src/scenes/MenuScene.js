@@ -87,10 +87,11 @@ export default class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     if (enabled) {
-      bg.setInteractive(new Phaser.Geom.Rectangle(x-120, y-22, 240, 44), Phaser.Geom.Rectangle.Contains);
-      bg.on('pointerover',  () => { drawBtn(true);  txt.setScale(1.05); });
-      bg.on('pointerout',   () => { drawBtn(false); txt.setScale(1);    });
-      bg.on('pointerdown',  () => { this.sound.play?.('click'); cb(); });
+      // Zone is more reliable than Graphics.setInteractive for hit areas
+      const zone = this.add.zone(x, y, 240, 44).setInteractive();
+      zone.on('pointerover',  () => { drawBtn(true);  txt.setScale(1.05); });
+      zone.on('pointerout',   () => { drawBtn(false); txt.setScale(1);    });
+      zone.on('pointerdown',  () => { cb(); });
     }
     return { bg, txt };
   }
