@@ -3,113 +3,108 @@ export default class MenuScene extends Phaser.Scene {
 
   create() {
     const { width: W, height: H } = this.scale;
+    this._transitioning = false;
 
-    // Parallax background
-    this._bg = this.add.image(W/2, H/2, 'bg_sky').setDisplaySize(W, H);
-    this._hills = this.add.tileSprite(0, H-120, W*2, 200, 'bg_hills')
-      .setOrigin(0, 0).setScale(0.6).setAlpha(0.9);
+    // ── Background ─────────────────────────────────────────
+    this.add.image(W/2, H/2, 'bg_sky').setDisplaySize(W, H);
 
-    // Title
-    const title = this.add.text(W/2, 110, 'Chronicles\nof the Chosen', {
+    // Static hills image (avoid TileSprite NPOT-texture issues)
+    this.add.image(W/2, H - 60, 'bg_hills')
+      .setDisplaySize(W + 40, 180).setAlpha(0.85);
+
+    // Overlay darkening
+    const ov = this.add.graphics();
+    ov.fillStyle(0x000000, 0.25);
+    ov.fillRect(0, 0, W, H);
+
+    // ── Title ──────────────────────────────────────────────
+    const title = this.add.text(W/2, 108, 'Chronicles\nof the Chosen', {
       fontFamily: 'Cinzel, serif',
-      fontSize: '56px',
+      fontSize: '54px',
       fontStyle: 'bold',
       color: '#f0c060',
       stroke: '#3a1800',
       strokeThickness: 6,
       align: 'center',
-      shadow: { offsetX: 0, offsetY: 4, color: '#000', blur: 8, fill: true },
     }).setOrigin(0.5);
 
-    const sub = this.add.text(W/2, 195, 'Crónicas de los Elegidos', {
+    this.add.text(W/2, 196, 'Crónicas de los Elegidos', {
       fontFamily: 'Cinzel, serif',
-      fontSize: '18px',
-      color: '#d4a050',
-      letterSpacing: 6,
+      fontSize: '17px',
+      color: '#c8982a',
+      letterSpacing: 5,
     }).setOrigin(0.5);
 
-    // Gentle float animation on title
-    this.tweens.add({ targets: title, y: 116, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-
-    // Buttons
-    const buttons = [
-      { label: '1 Jugador',    mode: '1p',     y: 280 },
-      { label: '2 Jugadores',  mode: '2p',     y: 340 },
-      { label: 'Online (Próx.)', mode: null,   y: 400 },
-    ];
-
-    buttons.forEach(({ label, mode, y }) => {
-      const enabled = mode !== null;
-      const btn = this._makeButton(W/2, y, label, enabled, () => {
-        this.cameras.main.fadeOut(300, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-          this.scene.start('CharSelect', { mode, numPlayers: mode === '2p' ? 2 : 1 });
-        });
-      });
+    this.tweens.add({
+      targets: title, y: 115,
+      duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
     });
 
-    // Version / controls hint
-    this.add.text(W/2, H - 24, 'Flechas/WASD • Saltar ↑/W • Disparar M/G', {
-      fontFamily: 'Crimson Text, serif', fontSize: '14px', color: '#aaaaaa',
+    // ── Buttons ────────────────────────────────────────────
+    // Using Text.setInteractive() — most reliable approach in Phaser 3
+    this._makeBtn(W/2, 282, '▶  1 Jugador',     () => this._go('1p'));
+    this._makeBtn(W/2, 348, '▶  2 Jugadores',   () => this._go('2p'));
+    this._makeBtn(W/2, 414, '○  Online (Próx.)', null);
+
+    // ── Controls hint ──────────────────────────────────────
+    this.add.text(W/2, H - 22, 'Flechas / WASD  ·  Saltar ↑/W  ·  Disparar M/G', {
+      fontFamily: 'Crimson Text, serif', fontSize: '14px', color: '#999999',
     }).setOrigin(0.5);
 
-    // Floating particles
+    // ── Keyboard shortcuts ─────────────────────────────────
+    this.input.keyboard.on('keydown-ONE',   () => this._go('1p'));
+    this.input.keyboard.on('keydown-TWO',   () => this._go('2p'));
+    this.input.keyboard.on('keydown-ENTER', () => this._go('1p'));
+
+    // ── Floating particles ─────────────────────────────────
     this._spawnParticles();
 
-    this.cameras.main.fadeIn(400);
+    this.cameras.main.fadeIn(500);
   }
 
-  update() {
-    if (this._hills) this._hills.tilePositionX += 0.4;
-  }
-
-  _makeButton(x, y, label, enabled, cb) {
-    const bg = this.add.graphics();
-    const drawBtn = (hover) => {
-      bg.clear();
-      if (!enabled) {
-        bg.fillStyle(0x333333, 0.6);
-      } else if (hover) {
-        bg.fillStyle(0xa07820, 0.95);
-      } else {
-        bg.fillStyle(0x6b4f10, 0.85);
-      }
-      bg.fillRoundedRect(x-120, y-22, 240, 44, 10);
-      bg.lineStyle(2, enabled ? 0xf0c060 : 0x555555, 0.8);
-      bg.strokeRoundedRect(x-120, y-22, 240, 44, 10);
-    };
-    drawBtn(false);
-
-    const txt = this.add.text(x, y, label, {
-      fontFamily: 'Cinzel, serif',
-      fontSize: '22px',
-      color: enabled ? '#f0c060' : '#666666',
+  _makeBtn(x, y, label, cb) {
+    const on  = cb !== null;
+    const btn = this.add.text(x, y, label, {
+      fontFamily:      'Cinzel, serif',
+      fontSize:        '22px',
+      color:           on ? '#f0c060' : '#555555',
+      stroke:          on ? '#3a1800' : 'transparent',
+      strokeThickness: on ? 3 : 0,
+      backgroundColor: on ? '#6b4f10bb' : '#1a1a1a99',
+      padding:         { x: 30, y: 13 },
     }).setOrigin(0.5);
 
-    if (enabled) {
-      // Zone is more reliable than Graphics.setInteractive for hit areas
-      const zone = this.add.zone(x, y, 240, 44).setInteractive();
-      zone.on('pointerover',  () => { drawBtn(true);  txt.setScale(1.05); });
-      zone.on('pointerout',   () => { drawBtn(false); txt.setScale(1);    });
-      zone.on('pointerdown',  () => { cb(); });
-    }
-    return { bg, txt };
+    if (!on) return btn;
+
+    btn.setInteractive({ useHandCursor: true });
+    btn.on('pointerover',  () => btn.setStyle({ backgroundColor: '#a07820cc' }));
+    btn.on('pointerout',   () => btn.setStyle({ backgroundColor: '#6b4f10bb' }));
+    btn.on('pointerdown',  () => { btn.setStyle({ backgroundColor: '#d4a040ee' }); cb(); });
+
+    return btn;
+  }
+
+  _go(mode) {
+    if (this._transitioning) return;
+    this._transitioning = true;
+    // Direct scene.start — no camera-event chain that can silently fail
+    this.scene.start('CharSelect', { mode, numPlayers: mode === '2p' ? 2 : 1 });
   }
 
   _spawnParticles() {
     const { width: W, height: H } = this.scale;
-    for (let i = 0; i < 20; i++) {
-      const x = Phaser.Math.Between(0, W);
-      const y = Phaser.Math.Between(0, H);
-      const p = this.add.image(x, y, 'particle').setAlpha(0).setScale(0.5 + Math.random());
+    for (let i = 0; i < 16; i++) {
+      const px = Phaser.Math.Between(20, W - 20);
+      const py = Phaser.Math.Between(20, H - 20);
+      const p  = this.add.image(px, py, 'particle')
+        .setAlpha(0).setScale(0.4 + Math.random() * 0.6);
       this.tweens.add({
         targets: p,
-        alpha: { from: 0, to: 0.7 },
-        y: y - Phaser.Math.Between(40, 120),
-        duration: 1500 + Math.random() * 2000,
-        delay: Math.random() * 3000,
-        yoyo: true,
-        repeat: -1,
+        alpha:   { from: 0, to: 0.6 },
+        y:       py - Phaser.Math.Between(40, 110),
+        duration: 1600 + Math.random() * 1800,
+        delay:    Math.random() * 2500,
+        yoyo: true, repeat: -1,
         ease: 'Sine.easeInOut',
       });
     }
